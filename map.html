@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Live GPS Tracker with CSV Export</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <style>
+    body { margin: 0; font-family: Arial, sans-serif; }
+    #map { height: 70vh; width: 100%; }
+    #info {
+      padding: 10px;
+      background: #f9f9f9;
+      border-top: 1px solid #ccc;
+    }
+    #downloadBtn {
+      margin-top: 10px;
+      padding: 10px 15px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+<div id="map"></div>
+<div id="info">
+  <strong>Live Location Info:</strong><br>
+  Latitude: <span id="lat">Loading...</span><br>
+  Longitude: <span id="lng">Loading...</span><br>
+  Accuracy: <span id="accuracy">Loading...</span> meters<br>
+  Speed: <span id="speed">Calculating...</span> m/s<br>
+  Timestamp: <span id="timestamp">Waiting...</span><br>
+  <button id="downloadBtn">Download CSV</button>
+</div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script>
+  const map = L.map('map').setView([0, 0], 2);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
+
+  let marker;
+  let locationData = [];
+
+  function updateMap(position) {
+    const { latitude, longitude, accuracy, speed } = position.coords;
+    const timestamp = new Date(position.timestamp).toLocaleString();
+
+    document.getElementById('lat').textContent = latitude.toFixed(6);
+    document.getElementById('lng').textContent = longitude.toFixed(6);
+    document.getElementById('accuracy').textContent = accuracy.toFixed(2);
+    document.getElementById('speed').textContent = speed ? speed.toFixed(2) : '0.00';
+    document.getElementById('timestamp').textContent = timestamp;
+
+    const latlng = [latitude, longitude];
+
+    if (!marker) {
+      marker = L.marker(latlng).addTo(map);
+    } else {
+      marker.setLatLng(latlng);
+    }
+
+    map.setView(latlng, 16);
+
+    // Store data for CSV
+    locationData.push({
+      latitude,
+      longitude,
+      accuracy,
+      speed: speed || 0,
+      timestamp
+    });
+  }
+
+  function handleError(error) {
+    alert("Geolocation error: " + error.message);
+    console.error(error);
+  }
+
+  // Start location tracking
+  if (navigator.geolocation) {
+    navigator.geolocation.watchPosition(updateMap, handleError, {
+      enableHighAccuracy: true,
+      maximumAge: 0,
+      timeout: 10000
+    });
+  } else {
+    alert("Geolocation is not supported by this browser.");
+  }
+
+  // CSV Download Function
+  document.getElementById('downloadBtn').addEventListener('click', () => {
+    if (locationData.length === 0) {
+      alert("No data to export.");
+      return;
+    }
+
+    const header = "Latitude,Longitude,Accuracy (m),Speed (m/s),Timestamp\n";
+    const rows = locationData.map(data =>
+      `${data.latitude},${data.longitude},${data.accuracy},${data.speed},${data.timestamp}`
+    );
+    const csvContent = header + rows.join("\n");
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `location_log_${Date.now()}.csv`;
+    a.click();
+
+    URL.revokeObjectURL(url);
+  });
+</script>
+</body>
+</html>
